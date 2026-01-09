@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,7 +20,7 @@ class JobStatus(str, Enum):
 class LoadRequest(BaseModel):
     """Request model for file load endpoints."""
 
-    date: Optional[datetime.date] = Field(
+    date: datetime.date | None = Field(
         default=None,
         description="Date for file discovery (YYYY-MM-DD). Defaults to today.",
         examples=["2024-01-15"],
@@ -35,7 +35,7 @@ class FileLoadResult(BaseModel):
     rows_read: int = Field(ge=0)
     rows_upserted: int = Field(ge=0)
     status: JobStatus
-    error: Optional[str] = Field(default=None)
+    error: str | None = Field(default=None)
 
 
 class LoadResponse(BaseModel):

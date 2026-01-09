@@ -112,6 +112,54 @@ uv run alembic upgrade head --sql
 Environment variables for migrations:
 - `CUSIP_DB_HOST`, `CUSIP_DB_PORT`, `CUSIP_DB_NAME`, `CUSIP_DB_USER`, `CUSIP_DB_PASSWORD`
 
+## Configuration
+
+All configuration is via environment variables with `CUSIP_` prefix.
+
+### Database Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CUSIP_DB_HOST` | `localhost` | PostgreSQL host |
+| `CUSIP_DB_PORT` | `5432` | PostgreSQL port |
+| `CUSIP_DB_NAME` | `cusip` | Database name |
+| `CUSIP_DB_USER` | `cusip_app` | Database user |
+| `CUSIP_DB_PASSWORD` | (required) | Database password |
+
+### File Source Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CUSIP_FILE_SOURCE` | `local` | File source: `local` or `s3` |
+| `CUSIP_FILE_DIR` | `/data/pif_files` | Local directory for PIF files (when `file_source=local`) |
+| `CUSIP_S3_BUCKET` | (required for S3) | S3 bucket name |
+| `CUSIP_S3_PREFIX` | `pif/` | S3 prefix/path (include trailing slash) |
+| `CUSIP_S3_REGION` | (optional) | AWS region for S3 bucket |
+
+### API Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CUSIP_API_TOKEN` | (required) | Bearer token for job endpoint auth |
+
+### Local Development with S3
+
+To use S3 files with local PostgreSQL (requires AWS SSO login):
+
+```bash
+# Login to AWS SSO
+aws sso login --profile your-profile
+
+# Run with S3 + local DB
+AWS_PROFILE=your-profile \
+CUSIP_FILE_SOURCE=s3 \
+CUSIP_S3_BUCKET=cusip-pif-files-shared \
+CUSIP_DB_HOST=localhost \
+uv run uvicorn cusipservice.api.main:app --reload
+```
+
+See `docs/AWS_MULTI_ACCOUNT_SETUP.md` for full multi-account deployment guide.
+
 ## API Endpoints
 
 ### Job Endpoints (FastAPI - port 8000)
@@ -171,7 +219,8 @@ sql/
 src/cusipservice/
   loader.py             # Core loading logic (read, clean, COPY, upsert)
   config.py             # pydantic-settings configuration
-  file_discovery.py     # Find PIF files by date pattern
+  file_source.py        # File source abstraction (local + S3)
+  file_discovery.py     # Find PIF files by date pattern (legacy compat)
   __main__.py           # CLI entry point
   api/
     main.py             # FastAPI app factory
@@ -187,6 +236,8 @@ docker/
 migrations/
   versions/             # Alembic migration files
   env.py                # Alembic environment config
+docs/
+  AWS_MULTI_ACCOUNT_SETUP.md  # Multi-account S3 deployment guide
 ```
 
 ## Database Conventions

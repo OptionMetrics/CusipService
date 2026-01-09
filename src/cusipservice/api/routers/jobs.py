@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 from datetime import date
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from cusipservice.api.dependencies import get_db_config, verify_token
-from cusipservice.api.models import FileLoadResult, JobStatus, LoadRequest, LoadResponse
+from cusipservice.api.models import (
+    FileLoadResult,
+    JobStatus,
+    LoadRequest,
+    LoadResponse,
+)
 from cusipservice.config import Settings, get_settings
-from cusipservice.file_discovery import FileSet, find_files_for_date
-from cusipservice.loader import DbConfig, load_file
+from cusipservice.file_source import (
+    FileInfo,
+    FileSet,
+    LocalFileSource,
+    S3FileSource,
+    create_file_source,
+)
+from cusipservice.loader import DbConfig, load_from_source
 
 router = APIRouter(
     prefix="/jobs",
@@ -21,20 +31,32 @@ router = APIRouter(
 )
 
 
+def _get_file_source(settings: Settings) -> LocalFileSource | S3FileSource:
+    """Create file source from settings."""
+    return create_file_source(
+        source_type=settings.file_source,
+        file_dir=settings.file_dir,
+        s3_bucket=settings.s3_bucket,
+        s3_prefix=settings.s3_prefix,
+        s3_region=settings.s3_region if settings.s3_region else None,
+    )
+
+
 def _load_single_file(
     file_type: str,
     files: FileSet,
     db_config: DbConfig,
+    file_source: LocalFileSource | S3FileSource,
 ) -> FileLoadResult:
     """Load a single file type from the file set."""
-    file_map: dict[str, Path | None] = {
+    file_map: dict[str, FileInfo | None] = {
         "issuer": files.issuer,
         "issue": files.issue,
         "issue_attr": files.issue_attr,
     }
 
-    filepath = file_map.get(file_type)
-    if filepath is None:
+    file_info = file_map.get(file_type)
+    if file_info is None:
         return FileLoadResult(
             file="",
             type=file_type,  # type: ignore[arg-type]
@@ -44,7 +66,7 @@ def _load_single_file(
             error=f"No {file_type} file found for date {files.target_date}",
         )
 
-    result = load_file(filepath, file_type, db_config)
+    result = load_from_source(file_info, file_type, db_config, file_source)
 
     return FileLoadResult(
         file=result.get("file", ""),
@@ -66,14 +88,20 @@ def load_issuer(
     target_date = request.date or date.today()
 
     try:
-        files = find_files_for_date(settings.file_dir, target_date)
+        file_source = _get_file_source(settings)
+        files = file_source.find_files_for_date(target_date)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
-    result = _load_single_file("issuer", files, db_config)
+    result = _load_single_file("issuer", files, db_config, file_source)
     success = result.status == JobStatus.SUCCESS
 
     return LoadResponse(
@@ -94,14 +122,20 @@ def load_issue(
     target_date = request.date or date.today()
 
     try:
-        files = find_files_for_date(settings.file_dir, target_date)
+        file_source = _get_file_source(settings)
+        files = file_source.find_files_for_date(target_date)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
-    result = _load_single_file("issue", files, db_config)
+    result = _load_single_file("issue", files, db_config, file_source)
     success = result.status == JobStatus.SUCCESS
 
     return LoadResponse(
@@ -122,14 +156,20 @@ def load_issue_attr(
     target_date = request.date or date.today()
 
     try:
-        files = find_files_for_date(settings.file_dir, target_date)
+        file_source = _get_file_source(settings)
+        files = file_source.find_files_for_date(target_date)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
-    result = _load_single_file("issue_attr", files, db_config)
+    result = _load_single_file("issue_attr", files, db_config, file_source)
     success = result.status == JobStatus.SUCCESS
 
     return LoadResponse(
@@ -155,10 +195,16 @@ def load_all(
     target_date = request.date or date.today()
 
     try:
-        files = find_files_for_date(settings.file_dir, target_date)
+        file_source = _get_file_source(settings)
+        files = file_source.find_files_for_date(target_date)
     except FileNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
 
@@ -166,7 +212,7 @@ def load_all(
     load_order = ["issuer", "issue", "issue_attr"]
 
     for file_type in load_order:
-        result = _load_single_file(file_type, files, db_config)
+        result = _load_single_file(file_type, files, db_config, file_source)
         results.append(result)
 
         # Stop if a load fails (not just skipped)

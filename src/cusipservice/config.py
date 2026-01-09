@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,10 +26,30 @@ class Settings(BaseSettings):
     db_user: str = Field(default="cusip_app", description="Database user")
     db_password: str = Field(default="", description="Database password")
 
-    # File paths
+    # File source configuration
+    file_source: Literal["local", "s3"] = Field(
+        default="local",
+        description="File source: 'local' for filesystem or 's3' for S3 bucket",
+    )
+
+    # Local file paths (used when file_source='local')
     file_dir: Path = Field(
         default=Path("/data/pif_files"),
-        description="Directory containing PIF files",
+        description="Directory containing PIF files (local source only)",
+    )
+
+    # S3 configuration (used when file_source='s3')
+    s3_bucket: str = Field(
+        default="",
+        description="S3 bucket name for PIF files",
+    )
+    s3_prefix: str = Field(
+        default="pif/",
+        description="S3 prefix/path for PIF files (include trailing slash)",
+    )
+    s3_region: str = Field(
+        default="",
+        description="AWS region for S3 bucket (optional, uses default if not set)",
     )
 
     # API

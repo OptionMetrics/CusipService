@@ -101,10 +101,10 @@ curl -X POST http://localhost:8000/jobs/load-issue-attr \
   -d '{"date": "2024-01-15"}'
 ```
 
-**File naming convention**: Files must match pattern `CMD{mm-dd}*.PIP`:
-- `CMD01-15R.PIP` - Issuer file for January 15
-- `CMD01-15E.PIP` - Issue file for January 15
-- `CMD01-15A.PIP` - Issue attribute file for January 15
+**File naming convention**: Files must match pattern `CED{mm-dd}*.PIP`:
+- `CED01-15R.PIP` - Issuer file for January 15
+- `CED01-15E.PIP` - Issue file for January 15
+- `CED01-15A.PIP` - Issue attribute file for January 15
 
 ### Query Plane (Port 3000)
 
@@ -178,6 +178,8 @@ uv run python -m cusipservice
 
 ### Environment Variables
 
+#### Database Settings
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CUSIP_DB_HOST` | PostgreSQL host | `localhost` |
@@ -185,19 +187,119 @@ uv run python -m cusipservice
 | `CUSIP_DB_NAME` | Database name | `cusip` |
 | `CUSIP_DB_USER` | Database user | `cusip_app` |
 | `CUSIP_DB_PASSWORD` | Database password | (required) |
-| `CUSIP_FILE_DIR` | Directory containing PIF files | `/data/pif_files` |
+
+#### File Source Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CUSIP_FILE_SOURCE` | File source: `local` or `s3` | `local` |
+| `CUSIP_FILE_DIR` | Local directory for PIF files | `/data/pif_files` |
+| `CUSIP_S3_BUCKET` | S3 bucket name (required if `s3`) | - |
+| `CUSIP_S3_PREFIX` | S3 prefix/path for PIF files | `pif/` |
+| `CUSIP_S3_REGION` | AWS region for S3 bucket | (optional) |
+
+#### API Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `CUSIP_API_TOKEN` | Bearer token for job endpoints | (required) |
 
-Create a `.env` file for local development:
+#### Example `.env` for Local Development
 
 ```bash
+# Database
 CUSIP_DB_HOST=localhost
 CUSIP_DB_PORT=5432
 CUSIP_DB_NAME=cusip
 CUSIP_DB_USER=postgres
 CUSIP_DB_PASSWORD=postgres
+
+# File source (local)
+CUSIP_FILE_SOURCE=local
 CUSIP_FILE_DIR=./pif_files
+
+# API
 CUSIP_API_TOKEN=changeme
+```
+
+#### Example `.env` for S3 File Source
+
+```bash
+# Database
+CUSIP_DB_HOST=localhost
+CUSIP_DB_NAME=cusip
+CUSIP_DB_USER=postgres
+CUSIP_DB_PASSWORD=postgres
+
+# File source (S3)
+CUSIP_FILE_SOURCE=s3
+CUSIP_S3_BUCKET=cusip-pif-files-shared
+CUSIP_S3_PREFIX=pif/
+CUSIP_S3_REGION=us-east-1
+
+# API
+CUSIP_API_TOKEN=changeme
+```
+
+### Using S3 with AWS SSO (Local Development)
+
+You can develop locally against a local PostgreSQL while reading files from a remote S3 bucket:
+
+```bash
+# Login to AWS SSO
+aws sso login --profile your-profile
+
+# Run with S3 file source
+AWS_PROFILE=your-profile \
+CUSIP_FILE_SOURCE=s3 \
+CUSIP_S3_BUCKET=cusip-pif-files-shared \
+CUSIP_DB_HOST=localhost \
+uv run uvicorn cusipservice.api.main:app --reload
+```
+
+### CLI with S3
+
+The CLI also supports loading from S3:
+
+```bash
+# Load all files for a date from S3
+AWS_PROFILE=your-profile uv run python -m cusipservice \
+  --s3-bucket cusip-pif-files-shared \
+  --s3-prefix pif/ \
+  --date 2024-01-15 \
+  --dbname cusip --user cusip_app --password changeme
+
+# Load a specific S3 file
+AWS_PROFILE=your-profile uv run python -m cusipservice \
+  --s3-bucket cusip-pif-files-shared \
+  --s3-key pif/CED01-15R.PIP \
+  --type issuer \
+  --dbname cusip --user cusip_app --password changeme
+```
+
+See `docs/AWS_MULTI_ACCOUNT_SETUP.md` for multi-account deployment with cross-account S3 access.
+
+### S3 Bucket Organization
+
+When using S3 as the file source, organize files like this:
+
+```
+s3://your-bucket/
+└── pif/                    # Matches CUSIP_S3_PREFIX
+    ├── CED01-15R.PIP       # Issuer file for Jan 15
+    ├── CED01-15E.PIP       # Issue file for Jan 15
+    ├── CED01-15A.PIP       # Issue attributes for Jan 15
+    ├── CED01-16R.PIP
+    ├── CED01-16E.PIP
+    └── ...
+```
+
+Upload files:
+
+```bash
+aws s3 cp /path/to/CED01-15R.PIP s3://your-bucket/pif/
+aws s3 cp /path/to/CED01-15E.PIP s3://your-bucket/pif/
+aws s3 cp /path/to/CED01-15A.PIP s3://your-bucket/pif/
 ```
 
 ### Code Quality
@@ -310,6 +412,8 @@ CusipService/
 │       ├── 03-cusip_views.sql
 │       ├── 04-full_text_search.sql
 │       └── 05-postgrest_roles.sql
+├── docs/
+│   └── AWS_MULTI_ACCOUNT_SETUP.md  # Multi-account S3 deployment guide
 ├── sql/                        # Source SQL files
 │   ├── cusip_ddl.sql
 │   ├── cusip_ref_data.sql
@@ -319,7 +423,8 @@ CusipService/
     ├── __main__.py             # CLI entry point
     ├── config.py               # Configuration management
     ├── loader.py               # Core loading logic
-    ├── file_discovery.py       # File pattern matching
+    ├── file_source.py          # File source abstraction (local + S3)
+    ├── file_discovery.py       # File pattern matching (legacy compat)
     └── api/
         ├── main.py             # FastAPI application
         ├── dependencies.py     # Auth and config injection

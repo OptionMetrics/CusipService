@@ -1,4 +1,9 @@
-"""File discovery utilities for CUSIP PIF files."""
+"""
+File discovery utilities for CUSIP PIF files.
+
+This module provides backwards-compatible imports from file_source.py
+and utility functions for date parsing.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +12,33 @@ from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
+# Re-export FileSet and related classes from file_source for backwards compatibility
+from cusipservice.file_source import (
+    FileInfo,
+    FileSet,
+    LocalFileSource,
+    S3FileSource,
+    create_file_source,
+)
 
-class FileSet(NamedTuple):
-    """Set of CUSIP files for a given date."""
+__all__ = [
+    "FileInfo",
+    "FileSet",
+    "LocalFileSource",
+    "S3FileSource",
+    "create_file_source",
+    "find_files_for_date",
+    "parse_date_param",
+    "LegacyFileSet",
+]
+
+
+class LegacyFileSet(NamedTuple):
+    """
+    Legacy file set for backwards compatibility.
+
+    Deprecated: Use FileSet from file_source instead.
+    """
 
     issuer: Path | None
     issue: Path | None
@@ -20,48 +49,31 @@ class FileSet(NamedTuple):
 def find_files_for_date(
     directory: Path,
     target_date: date | None = None,
-) -> FileSet:
+) -> LegacyFileSet:
     """
-    Find CUSIP PIF files for a specific date.
+    Find CUSIP PIF files for a specific date (legacy function).
+
+    This function is maintained for backwards compatibility.
+    For new code, use LocalFileSource or S3FileSource directly.
 
     Args:
         directory: Directory containing PIF files
         target_date: Date to search for (defaults to today)
 
     Returns:
-        FileSet with paths to issuer, issue, and issue_attr files
+        LegacyFileSet with paths to issuer, issue, and issue_attr files
 
     Raises:
         FileNotFoundError: If directory doesn't exist
     """
-    if target_date is None:
-        target_date = date.today()
+    source = LocalFileSource(directory)
+    file_set = source.find_files_for_date(target_date)
 
-    if not directory.exists():
-        raise FileNotFoundError(f"Directory not found: {directory}")
-
-    # Pattern: CMD followed by mm-dd (e.g., CMD01-15)
-    date_pattern = target_date.strftime("%m-%d")
-    pattern = f"CMD{date_pattern}*"
-
-    issuer_file: Path | None = None
-    issue_file: Path | None = None
-    issue_attr_file: Path | None = None
-
-    for filepath in directory.glob(pattern + ".PIP"):
-        name_upper = filepath.name.upper()
-        if name_upper.endswith("R.PIP"):
-            issuer_file = filepath
-        elif name_upper.endswith("E.PIP"):
-            issue_file = filepath
-        elif name_upper.endswith("A.PIP"):
-            issue_attr_file = filepath
-
-    return FileSet(
-        issuer=issuer_file,
-        issue=issue_file,
-        issue_attr=issue_attr_file,
-        target_date=target_date,
+    return LegacyFileSet(
+        issuer=file_set.issuer.local_path if file_set.issuer else None,
+        issue=file_set.issue.local_path if file_set.issue else None,
+        issue_attr=file_set.issue_attr.local_path if file_set.issue_attr else None,
+        target_date=file_set.target_date,
     )
 
 
