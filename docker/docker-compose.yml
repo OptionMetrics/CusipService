@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cusip-db
+    environment:
+      POSTGRES_DB: cusip
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cusip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: cusip-api
+    environment:
+      CUSIP_DB_HOST: db
+      CUSIP_DB_PORT: "5432"
+      CUSIP_DB_NAME: cusip
+      CUSIP_DB_USER: postgres
+      CUSIP_DB_PASSWORD: postgres
+      CUSIP_FILE_DIR: /data/pif_files
+      CUSIP_API_TOKEN: ${CUSIP_API_TOKEN:-changeme}
+    volumes:
+      - ${PIF_FILES_PATH:-./pif_files}:/data/pif_files:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: cusip-postgrest
+    environment:
+      PGRST_DB_URI: postgres://authenticator:changeme@db:5432/cusip
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_SERVER_PORT: "3000"
+      PGRST_DB_MAX_ROWS: "10000"
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    container_name: cusip-swagger
+    environment:
+      API_URL: http://localhost:3000/
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgrest
+
+volumes:
+  postgres_data:
