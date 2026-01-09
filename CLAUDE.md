@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CusipService loads daily CUSIP securities data files from CUSIP Global Services into a PostgreSQL database. The loader reads pipe-delimited PIF files, strips footer records, and performs upserts via staging tables.
+CusipService loads daily CUSIP securities data files from CUSIP Global Services into a PostgreSQL database. The loader reads pipe-delimited PIP files, strips footer records, and performs upserts via staging tables.
 
 **Architecture**: Stonebranch orchestration downloads files via SFTP to S3/EFS, then calls this REST API to trigger file loads. Query endpoints are provided via PostgREST.
 
@@ -131,9 +131,9 @@ All configuration is via environment variables with `CUSIP_` prefix.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CUSIP_FILE_SOURCE` | `local` | File source: `local` or `s3` |
-| `CUSIP_FILE_DIR` | `/data/pif_files` | Local directory for PIF files (when `file_source=local`) |
+| `CUSIP_FILE_DIR` | `/data/pip_files` | Local directory for PIP files (when `file_source=local`) |
 | `CUSIP_S3_BUCKET` | (required for S3) | S3 bucket name |
-| `CUSIP_S3_PREFIX` | `pif/` | S3 prefix/path (include trailing slash) |
+| `CUSIP_S3_PREFIX` | `pip/` | S3 prefix/path (include trailing slash) |
 | `CUSIP_S3_REGION` | (optional) | AWS region for S3 bucket |
 
 ### API Settings
@@ -153,7 +153,7 @@ aws sso login --profile your-profile
 # Run with S3 + local DB
 AWS_PROFILE=your-profile \
 CUSIP_FILE_SOURCE=s3 \
-CUSIP_S3_BUCKET=cusip-pif-files-shared \
+CUSIP_S3_BUCKET=cusip-pip-files-shared \
 CUSIP_DB_HOST=localhost \
 uv run uvicorn cusipservice.api.main:app --reload
 ```
@@ -220,7 +220,7 @@ src/cusipservice/
   loader.py             # Core loading logic (read, clean, COPY, upsert)
   config.py             # pydantic-settings configuration
   file_source.py        # File source abstraction (local + S3)
-  file_discovery.py     # Find PIF files by date pattern (legacy compat)
+  file_discovery.py     # Find PIP files by date pattern (legacy compat)
   __main__.py           # CLI entry point
   api/
     main.py             # FastAPI app factory

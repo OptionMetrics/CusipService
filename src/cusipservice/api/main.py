@@ -12,7 +12,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="CUSIP Service API",
-        description="Load CUSIP PIF files and query securities data",
+        description="Load CUSIP PIP files and query securities data",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",

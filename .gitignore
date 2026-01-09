@@ -33,7 +33,7 @@ htmlcov/
 .ruff_cache/
 
 # Docker
-docker/pif_files/
+docker/pip_files/
 postgres_data/
 
 # OS

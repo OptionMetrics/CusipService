@@ -1,6 +1,6 @@
 # CusipService
 
-A REST API service for loading and querying CUSIP securities data from CUSIP Global Services. The service ingests daily PIF (Pipe-delimited) files and provides queryable REST endpoints for securities data.
+A REST API service for loading and querying CUSIP securities data from CUSIP Global Services. The service ingests daily PIP (Pipe-delimited) files and provides queryable REST endpoints for securities data.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ The service consists of two API planes:
 ### Data Flow
 
 ```
-PIF Files → FastAPI /jobs/* → PostgreSQL → PostgREST → Consumers
+PIP Files → FastAPI /jobs/* → PostgreSQL → PostgREST → Consumers
 ```
 
 ### File Types
@@ -180,6 +180,10 @@ uv run python -m cusipservice
 
 #### Database Settings
 
+You can configure database credentials either directly or via AWS Secrets Manager (recommended for production with rotating secrets).
+
+**Direct configuration:**
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CUSIP_DB_HOST` | PostgreSQL host | `localhost` |
@@ -187,15 +191,27 @@ uv run python -m cusipservice
 | `CUSIP_DB_NAME` | Database name | `cusip` |
 | `CUSIP_DB_USER` | Database user | `cusip_app` |
 | `CUSIP_DB_PASSWORD` | Database password | (required) |
+| `CUSIP_DB_SSLMODE` | SSL mode for connection | `prefer` |
+
+SSL mode options: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Use `require` for AWS RDS.
+
+**AWS Secrets Manager (overrides direct settings if set):**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CUSIP_DB_SECRET_ARN` | ARN of secret containing DB credentials | - |
+| `CUSIP_DB_SECRET_REGION` | AWS region for Secrets Manager | (optional) |
+
+When `CUSIP_DB_SECRET_ARN` is set, the application fetches credentials at startup from Secrets Manager. The secret must be JSON with standard RDS keys: `host`, `port`, `dbname`, `username`, `password`.
 
 #### File Source Settings
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CUSIP_FILE_SOURCE` | File source: `local` or `s3` | `local` |
-| `CUSIP_FILE_DIR` | Local directory for PIF files | `/data/pif_files` |
+| `CUSIP_FILE_DIR` | Local directory for PIP files | `/data/pip_files` |
 | `CUSIP_S3_BUCKET` | S3 bucket name (required if `s3`) | - |
-| `CUSIP_S3_PREFIX` | S3 prefix/path for PIF files | `pif/` |
+| `CUSIP_S3_PREFIX` | S3 prefix/path for PIP files | `pip/` |
 | `CUSIP_S3_REGION` | AWS region for S3 bucket | (optional) |
 
 #### API Settings
@@ -216,7 +232,7 @@ CUSIP_DB_PASSWORD=postgres
 
 # File source (local)
 CUSIP_FILE_SOURCE=local
-CUSIP_FILE_DIR=./pif_files
+CUSIP_FILE_DIR=./pip_files
 
 # API
 CUSIP_API_TOKEN=changeme
@@ -233,8 +249,8 @@ CUSIP_DB_PASSWORD=postgres
 
 # File source (S3)
 CUSIP_FILE_SOURCE=s3
-CUSIP_S3_BUCKET=cusip-pif-files-shared
-CUSIP_S3_PREFIX=pif/
+CUSIP_S3_BUCKET=cusip-pip-files-shared
+CUSIP_S3_PREFIX=pip/
 CUSIP_S3_REGION=us-east-1
 
 # API
@@ -252,7 +268,7 @@ aws sso login --profile your-profile
 # Run with S3 file source
 AWS_PROFILE=your-profile \
 CUSIP_FILE_SOURCE=s3 \
-CUSIP_S3_BUCKET=cusip-pif-files-shared \
+CUSIP_S3_BUCKET=cusip-pip-files-shared \
 CUSIP_DB_HOST=localhost \
 uv run uvicorn cusipservice.api.main:app --reload
 ```
@@ -264,15 +280,15 @@ The CLI also supports loading from S3:
 ```bash
 # Load all files for a date from S3
 AWS_PROFILE=your-profile uv run python -m cusipservice \
-  --s3-bucket cusip-pif-files-shared \
-  --s3-prefix pif/ \
+  --s3-bucket cusip-pip-files-shared \
+  --s3-prefix pip/ \
   --date 2024-01-15 \
   --dbname cusip --user cusip_app --password changeme
 
 # Load a specific S3 file
 AWS_PROFILE=your-profile uv run python -m cusipservice \
-  --s3-bucket cusip-pif-files-shared \
-  --s3-key pif/CED01-15R.PIP \
+  --s3-bucket cusip-pip-files-shared \
+  --s3-key pip/CED01-15R.PIP \
   --type issuer \
   --dbname cusip --user cusip_app --password changeme
 ```
@@ -285,7 +301,7 @@ When using S3 as the file source, organize files like this:
 
 ```
 s3://your-bucket/
-└── pif/                    # Matches CUSIP_S3_PREFIX
+└── pip/                    # Matches CUSIP_S3_PREFIX
     ├── CED01-15R.PIP       # Issuer file for Jan 15
     ├── CED01-15E.PIP       # Issue file for Jan 15
     ├── CED01-15A.PIP       # Issue attributes for Jan 15
@@ -297,9 +313,9 @@ s3://your-bucket/
 Upload files:
 
 ```bash
-aws s3 cp /path/to/CED01-15R.PIP s3://your-bucket/pif/
-aws s3 cp /path/to/CED01-15E.PIP s3://your-bucket/pif/
-aws s3 cp /path/to/CED01-15A.PIP s3://your-bucket/pif/
+aws s3 cp /path/to/CED01-15R.PIP s3://your-bucket/pip/
+aws s3 cp /path/to/CED01-15E.PIP s3://your-bucket/pip/
+aws s3 cp /path/to/CED01-15A.PIP s3://your-bucket/pip/
 ```
 
 ### Code Quality
@@ -326,7 +342,27 @@ uv run ruff check --fix .
 
 ## Database Migrations
 
-This project uses Alembic for database migrations.
+This project uses Alembic for database migrations. Migrations read database connection settings from the same `CUSIP_*` environment variables as the application.
+
+### Specifying Target Database
+
+Set the database connection via environment variables:
+
+```bash
+# Option 1: Export variables
+export CUSIP_DB_HOST=your-rds-host.amazonaws.com
+export CUSIP_DB_PORT=5432
+export CUSIP_DB_NAME=cusip
+export CUSIP_DB_USER=cusip_app
+export CUSIP_DB_PASSWORD=your-password
+uv run alembic upgrade head
+
+# Option 2: Inline (useful for one-off commands)
+CUSIP_DB_HOST=localhost CUSIP_DB_PASSWORD=postgres uv run alembic upgrade head
+
+# Option 3: Use .env file (automatically loaded)
+uv run alembic upgrade head
+```
 
 ### Running Migrations
 
@@ -342,6 +378,9 @@ uv run alembic history
 
 # View current revision
 uv run alembic current
+
+# Show SQL without executing (useful for review)
+uv run alembic upgrade head --sql
 ```
 
 ### Creating New Migrations
@@ -359,6 +398,27 @@ uv run alembic revision -m "description"
 - **Local Docker development**: Uses init scripts in `docker/init/` (runs on first container creation)
 - **Production deployment**: Use Alembic migrations for schema management
 
+### Production Migration Example
+
+Using Secrets Manager (recommended for rotating secrets):
+
+```bash
+# Run migrations using Secrets Manager ARN
+CUSIP_DB_SECRET_ARN=arn:aws:secretsmanager:us-east-1:123456789:secret:cusip/db-AbCdEf \
+uv run alembic upgrade head
+```
+
+Or fetch credentials manually:
+
+```bash
+# Run migrations against production RDS
+CUSIP_DB_HOST=cusip-db.xxxx.us-east-1.rds.amazonaws.com \
+CUSIP_DB_NAME=cusip \
+CUSIP_DB_USER=cusip_app \
+CUSIP_DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id cusip/db --query SecretString --output text | jq -r .password) \
+uv run alembic upgrade head
+```
+
 ## Production Deployment
 
 ### AWS ECS/Fargate
@@ -372,16 +432,56 @@ uv run alembic revision -m "description"
 
 2. **Run migrations** (from a task or CI/CD pipeline):
    ```bash
+   CUSIP_DB_SECRET_ARN=arn:aws:secretsmanager:us-east-1:123456789:secret:cusip/db \
    uv run alembic upgrade head
    ```
 
-3. **Configure environment variables** in ECS task definition:
-   - Set all `CUSIP_*` variables
-   - Use AWS Secrets Manager for sensitive values
+3. **Configure ECS task definition** with Secrets Manager:
 
-4. **Configure ALB routing**:
+   ```json
+   {
+     "containerDefinitions": [
+       {
+         "name": "cusip-api",
+         "image": "<account>.dkr.ecr.<region>.amazonaws.com/cusip-service:latest",
+         "portMappings": [{"containerPort": 8000}],
+         "environment": [
+           {"name": "CUSIP_DB_SECRET_ARN", "value": "arn:aws:secretsmanager:us-east-1:123456789:secret:cusip/db"},
+           {"name": "CUSIP_FILE_SOURCE", "value": "s3"},
+           {"name": "CUSIP_S3_BUCKET", "value": "cusip-pip-files"},
+           {"name": "CUSIP_S3_PREFIX", "value": "pip/"}
+         ],
+         "secrets": [
+           {
+             "name": "CUSIP_API_TOKEN",
+             "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789:secret:cusip/api-token"
+           }
+         ]
+       }
+     ]
+   }
+   ```
+
+   The application fetches DB credentials from the secret ARN at startup, which works seamlessly with RDS rotating secrets.
+
+4. **Required IAM permissions** for the ECS task role:
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": [
+       "secretsmanager:GetSecretValue"
+     ],
+     "Resource": [
+       "arn:aws:secretsmanager:us-east-1:123456789:secret:cusip/*"
+     ]
+   }
+   ```
+
+5. **Configure ALB routing**:
    - `/jobs/*`, `/health`, `/ready`, `/live` → FastAPI (8000)
    - `/api/*` → PostgREST (3000)
+
+For a complete step-by-step guide with AWS CLI commands, see **[docs/ECS_DEPLOYMENT_CHEATSHEET.md](docs/ECS_DEPLOYMENT_CHEATSHEET.md)**.
 
 ### Health Checks
 

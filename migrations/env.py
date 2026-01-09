@@ -1,9 +1,10 @@
 """Alembic environment configuration."""
 
 from logging.config import fileConfig
+from urllib.parse import quote_plus
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 
 from cusipservice.config import get_settings
 
@@ -16,19 +17,23 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Get database URL from our settings
-settings = get_settings()
-db_url = (
-    f"postgresql://{settings.db_user}:{settings.db_password}"
-    f"@{settings.db_host}:{settings.db_port}/{settings.db_name}"
-)
-config.set_main_option("sqlalchemy.url", db_url)
-
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = None
+
+
+def get_db_url() -> str:
+    """Build database URL from settings with proper encoding."""
+    settings = get_settings()
+    # URL-encode password to handle special characters (@, #, %, etc.)
+    encoded_password = quote_plus(settings.db_password)
+    return (
+        f"postgresql://{settings.db_user}:{encoded_password}"
+        f"@{settings.db_host}:{settings.db_port}/{settings.db_name}"
+        f"?sslmode={settings.db_sslmode}"
+    )
 
 
 def run_migrations_offline() -> None:
@@ -43,9 +48,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=get_db_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -62,9 +66,8 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        get_db_url(),
         poolclass=pool.NullPool,
     )
 

@@ -23,7 +23,7 @@ from cusipservice.loader import (
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Load CUSIP PIF files into PostgreSQL",
+        description="Load CUSIP PIP files into PostgreSQL",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -31,13 +31,13 @@ Examples:
   %(prog)s /data/CED01-15R.PIP --dbname cusip --user cusip_app
 
   # Load from S3 by date (uses AWS_PROFILE if set)
-  %(prog)s --s3-bucket cusip-pif-files --date 2024-01-15 --dbname cusip --user cusip_app
+  %(prog)s --s3-bucket cusip-pip-files --date 2024-01-15 --dbname cusip --user cusip_app
 
   # Load specific S3 file
-  %(prog)s --s3-bucket cusip-pif-files --s3-key pif/CED01-15R.PIP --type issuer --dbname cusip --user cusip_app
+  %(prog)s --s3-bucket cusip-pip-files --s3-key pip/CED01-15R.PIP --type issuer --dbname cusip --user cusip_app
 
   # Use AWS SSO profile
-  AWS_PROFILE=my-profile %(prog)s --s3-bucket cusip-pif-files --date 2024-01-15 --dbname cusip --user cusip_app
+  AWS_PROFILE=my-profile %(prog)s --s3-bucket cusip-pip-files --date 2024-01-15 --dbname cusip --user cusip_app
         """,
     )
 
@@ -46,16 +46,16 @@ Examples:
     source_group.add_argument(
         "files",
         nargs="*",
-        help="Path(s) to local PIF file(s)",
+        help="Path(s) to local PIP file(s)",
     )
     source_group.add_argument(
         "--s3-bucket",
-        help="S3 bucket name for PIF files",
+        help="S3 bucket name for PIP files",
     )
     source_group.add_argument(
         "--s3-prefix",
-        default="pif/",
-        help="S3 prefix/path for PIF files (default: pif/)",
+        default="pip/",
+        help="S3 prefix/path for PIP files (default: pip/)",
     )
     source_group.add_argument(
         "--s3-key",

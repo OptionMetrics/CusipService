@@ -1,5 +1,5 @@
 """
-File discovery utilities for CUSIP PIF files.
+File discovery utilities for CUSIP PIP files.
 
 This module provides backwards-compatible imports from file_source.py
 and utility functions for date parsing.
@@ -51,13 +51,13 @@ def find_files_for_date(
     target_date: date | None = None,
 ) -> LegacyFileSet:
     """
-    Find CUSIP PIF files for a specific date (legacy function).
+    Find CUSIP PIP files for a specific date (legacy function).
 
     This function is maintained for backwards compatibility.
     For new code, use LocalFileSource or S3FileSource directly.
 
     Args:
-        directory: Directory containing PIF files
+        directory: Directory containing PIP files
         target_date: Date to search for (defaults to today)
 
     Returns:

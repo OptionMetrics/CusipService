@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCrossAccountRead",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::436822043700:root",
+          "arn:aws:iam::846470649171:root",
+          "arn:aws:iam::273605903303:root"
+        ]
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::com.optionmetrics.vendor2",
+        "arn:aws:s3:::com.optionmetrics.vendor2/*"
+      ]
+    }
+  ]
+}

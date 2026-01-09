@@ -1,7 +1,7 @@
 """
 CUSIP File Loader
 
-Loads CUSIP PIF files (Issuer, Issue, Issue Attributes) into PostgreSQL
+Loads CUSIP PIP files (Issuer, Issue, Issue Attributes) into PostgreSQL
 with staging table + upsert pattern in a single transaction.
 
 Supports loading from:

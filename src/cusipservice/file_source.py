@@ -1,7 +1,7 @@
 """
 File source abstraction for local filesystem and S3.
 
-This module provides a unified interface for discovering and reading CUSIP PIF files
+This module provides a unified interface for discovering and reading CUSIP PIP files
 from either a local directory or an S3 bucket. It supports AWS SSO profiles via
 the standard AWS_PROFILE environment variable.
 """
@@ -51,7 +51,7 @@ class FileSource(Protocol):
     """Protocol for file source implementations."""
 
     def find_files_for_date(self, target_date: date | None = None) -> FileSet:
-        """Find CUSIP PIF files for a specific date."""
+        """Find CUSIP PIP files for a specific date."""
         ...
 
     def read_file(self, file_info: FileInfo) -> list[str]:
@@ -66,7 +66,7 @@ class LocalFileSource:
         self.directory = directory
 
     def find_files_for_date(self, target_date: date | None = None) -> FileSet:
-        """Find CUSIP PIF files in local directory for a specific date."""
+        """Find CUSIP PIP files in local directory for a specific date."""
         if target_date is None:
             target_date = date.today()
 
@@ -124,7 +124,7 @@ class S3FileSource:
     def __init__(
         self,
         bucket: str,
-        prefix: str = "pif/",
+        prefix: str = "pip/",
         region: str | None = None,
     ) -> None:
         self.bucket = bucket
@@ -145,7 +145,7 @@ class S3FileSource:
         return self._client
 
     def find_files_for_date(self, target_date: date | None = None) -> FileSet:
-        """Find CUSIP PIF files in S3 bucket for a specific date."""
+        """Find CUSIP PIP files in S3 bucket for a specific date."""
         if target_date is None:
             target_date = date.today()
 
@@ -205,7 +205,7 @@ def create_file_source(
     source_type: str,
     file_dir: Path | None = None,
     s3_bucket: str | None = None,
-    s3_prefix: str = "pif/",
+    s3_prefix: str = "pip/",
     s3_region: str | None = None,
 ) -> LocalFileSource | S3FileSource:
     """

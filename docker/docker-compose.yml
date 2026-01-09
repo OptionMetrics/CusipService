@@ -28,10 +28,10 @@ services:
       CUSIP_DB_NAME: cusip
       CUSIP_DB_USER: postgres
       CUSIP_DB_PASSWORD: postgres
-      CUSIP_FILE_DIR: /data/pif_files
+      CUSIP_FILE_DIR: /data/pip_files
       CUSIP_API_TOKEN: ${CUSIP_API_TOKEN:-changeme}
     volumes:
-      - ${PIF_FILES_PATH:-./pif_files}:/data/pif_files:ro
+      - ${PIP_FILES_PATH:-./pip_files}:/data/pip_files:ro
     ports:
       - "8000:8000"
     depends_on:
